@@ -74,17 +74,26 @@ class XInputProvider(Provider):
             if battery.BatteryType == BATTERY_TYPE_DISCONNECTED:
                 continue
             level, approx = None, ""
-            if battery.BatteryType in (BATTERY_TYPE_ALKALINE, BATTERY_TYPE_NIMH):
+            # Alkaline/NiMH are the documented wireless types. Third-party 2.4 GHz
+            # dongles that emulate an Xbox pad often report BATTERY_TYPE_UNKNOWN
+            # while still filling a valid tier (measured: GameSir G7 Pro on
+            # 3537:109C answers type 0xFF / level 3), so an unknown type with a
+            # valid tier is reported too - as an approximation, and flagged
+            # unconfirmed because the same field can be a firmware constant.
+            wireless = battery.BatteryType in (BATTERY_TYPE_ALKALINE, BATTERY_TYPE_NIMH)
+            unknown = battery.BatteryType == BATTERY_TYPE_UNKNOWN
+            if wireless or unknown:
                 tier = BATTERY_LEVELS.get(battery.BatteryLevel)
                 if tier is not None:
                     level, label = tier
                     approx = f"about {level}% ({label})"
-            # Wired, unknown types/levels have no percentage. Explicitly clear
-            # any earlier wireless percentage for this slot in the manager.
+            # Wired, invalid types and invalid levels have no percentage. Explicitly
+            # clear any earlier wireless percentage for this slot in the manager.
             out.append(DeviceStatus(
                 f"xinput:{slot}", "Xbox 手柄" + (f" {slot + 1}" if slot else ""),
                 level, source="xinput", approx=approx, kind="gamepad",
                 source_quality="system_property", connection_known=True,
                 charging_known=False, level_unavailable=level is None,
+                unconfirmed=unknown and level is not None,
             ))
         return out

@@ -78,20 +78,30 @@ class SystemGamepadTests(unittest.TestCase):
         self.assertIsNone(value["charging"])
         self.assertFalse(value["chargingKnown"])
 
-    def test_wired_and_unknown_clear_an_earlier_wireless_percentage(self):
+    def test_wired_clears_an_earlier_wireless_percentage(self):
         engine = self.engine()
-        for battery_type in (1, 0xFF):
-            with self.subTest(battery_type=battery_type):
-                self.accept(engine, "xinput", xinput_statuses({0: (3, 3)}))
-                self.assertEqual(engine._snapshot()["devices"][0]["percent"], 100)
-                self.accept(engine, "xinput", xinput_statuses({0: (battery_type, 0)}))
-                value, = engine._snapshot()["devices"]
-                self.assertIsNone(value["percent"])
-                self.assertFalse(value["approximate"])
-                self.assertEqual(value["measurementState"], "unknown")
-                self.assertEqual(value["sourceQuality"], "system_property")
-                self.assertEqual(value["connectionState"], "connected")
-                self.assertIsNone(value["confirmedAtUtc"])
+        self.accept(engine, "xinput", xinput_statuses({0: (3, 3)}))
+        self.assertEqual(engine._snapshot()["devices"][0]["percent"], 100)
+        self.accept(engine, "xinput", xinput_statuses({0: (1, 0)}))
+        value, = engine._snapshot()["devices"]
+        self.assertIsNone(value["percent"])
+        self.assertFalse(value["approximate"])
+        self.assertEqual(value["measurementState"], "unknown")
+        self.assertEqual(value["sourceQuality"], "system_property")
+        self.assertEqual(value["connectionState"], "connected")
+        self.assertIsNone(value["confirmedAtUtc"])
+
+    def test_unknown_type_tier_is_approximate_and_flagged_unconfirmed(self):
+        engine = self.engine()
+        self.accept(engine, "xinput", xinput_statuses({0: (3, 3)}))
+        self.assertEqual(engine._snapshot()["devices"][0]["percent"], 100)
+        self.accept(engine, "xinput", xinput_statuses({0: (0xFF, 0)}))
+        value, = engine._snapshot()["devices"]
+        self.assertEqual(value["percent"], 5)
+        self.assertTrue(value["approximate"])
+        self.assertTrue(value.get("unconfirmed"))
+        self.assertEqual(value["measurementState"], "current")
+        self.assertEqual(value["sourceQuality"], "system_property")
 
     def test_bluetooth_wins_in_either_completion_order_without_cached_duplicate(self):
         for order in (("xinput", "bluetooth"), ("bluetooth", "xinput")):
@@ -125,7 +135,9 @@ class SystemGamepadTests(unittest.TestCase):
                 self.accept(engine, "bluetooth", [status])
                 self.assertEqual(len([d for d in engine._snapshot()["devices"] if d["provider"] == "xinput"]), 2)
         engine = self.engine()
-        self.accept(engine, "xinput", xinput_statuses({0: (0xFF, 0), 1: (3, 3)}))
+        # A wired slot carries no percentage and must not consume the dedup budget;
+        # an unknown-type slot now reports an approximation instead.
+        self.accept(engine, "xinput", xinput_statuses({0: (1, 0), 1: (3, 3)}))
         self.accept(engine, "bluetooth", [bluetooth_pad()])
         remaining, = [d for d in engine._snapshot()["devices"] if d["provider"] == "xinput"]
         self.assertEqual(remaining["id"], server.public_id("xinput:0"))

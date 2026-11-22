@@ -75,7 +75,7 @@ class XInputTests(unittest.TestCase):
                 self.assertTrue(all(not s.charging_known for s in statuses))
 
     def test_wired_unknown_and_invalid_values_never_invent_percentages(self):
-        for battery_type, level in ((1, 0), (1, 3), (0xFF, 3), (7, 3), (2, 4), (3, 0xFF)):
+        for battery_type, level in ((1, 0), (1, 3), (7, 3), (2, 4), (3, 0xFF)):
             with self.subTest(battery_type=battery_type, level=level), \
                     xinput_fixture({0: (battery_type, level)}):
                 status, = X.XInputProvider().poll()
@@ -84,6 +84,26 @@ class XInputTests(unittest.TestCase):
                 self.assertTrue(status.level_unavailable)
                 self.assertTrue(status.online)
                 self.assertFalse(status.charging_known)
+
+    def test_unknown_type_with_a_valid_tier_is_approximate_and_unconfirmed(self):
+        for level, expected, label in ((0, 5, "empty"), (1, 30, "low"),
+                                       (2, 65, "medium"), (3, 100, "full")):
+            with self.subTest(level=level), xinput_fixture({0: (0xFF, level)}):
+                status, = X.XInputProvider().poll()
+                self.assertEqual(status.level, expected)
+                self.assertEqual(status.approx, f"about {expected}% ({label})")
+                self.assertFalse(status.level_unavailable)
+                self.assertTrue(status.unconfirmed)
+                self.assertTrue(status.connection_known)
+                self.assertFalse(status.charging_known)
+
+    def test_unknown_type_with_an_invalid_tier_stays_unavailable(self):
+        for level in (4, 0xFF):
+            with self.subTest(level=level), xinput_fixture({0: (0xFF, level)}):
+                status, = X.XInputProvider().poll()
+                self.assertIsNone(status.level)
+                self.assertTrue(status.level_unavailable)
+                self.assertFalse(status.unconfirmed)
 
     def test_state_failure_and_disconnected_battery_are_omitted(self):
         with xinput_fixture({0: (3, 3), 1: (0, 3)}, state_errors={0: 1167}) as (dll, _):
