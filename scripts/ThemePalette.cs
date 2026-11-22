@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using AtkBattery;
 
@@ -38,6 +38,11 @@ namespace AtkBatteryTray {
         internal Color Interaction(bool pressed){return VisualDesign.HighContrast?Selected:Color.FromArgb(pressed?(dark?30:19):(dark?18:10),Foreground);}
         internal Color IconFill {get{return VisualDesign.HighContrast?Track:Color.FromArgb(dark?9:5,Foreground);}}
         internal Color SyncFill {get{return VisualDesign.HighContrast?Card:Color.FromArgb(225,Card);}}
+        // Alpha of the panel card background: 255 keeps the shipped opaque card,
+        // lower values give a translucent "frosted" panel. The panel is presented
+        // through UpdateLayeredWindow, so this alpha becomes window transparency.
+        internal static int PanelAlpha=180;
+        internal Color PanelCard {get{return VisualDesign.HighContrast||PanelAlpha>=255?Card:Color.FromArgb(PanelAlpha,Card);}}
         internal Color Knob {get{return VisualDesign.HighContrast?SystemColors.Window:dark?Foreground:Color.White;}}
         internal static Color LevelColor(int? percent,bool dark) {
             if(VisualDesign.HighContrast)return percent.HasValue?SystemColors.WindowText:SystemColors.GrayText;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -139,7 +139,7 @@ static class ThemeTests {
             Check(PageTexts(rows)==first,"first preferences page keeps all eight display/reminder settings together");
             Check(rows.FindAll(delegate(PopupControl row){return row.Id>=200;}).Count==8&&!rows.Exists(delegate(PopupControl row){return row.Detail==HistoryNotice;}),"first page has eight settings and no history notice");
             using(var image=RenderPanel(PopupPages.SizeFor(rows),2,delegate(Graphics g){PopupPages.Paint(g,f.Owner,nav,rows,false,-1,-1,-1);})){
-                var footer=new RectangleF(13,image.Height/2-25,234,20);Check(Pixels(image,footer,2,delegate(Color c){return c.ToArgb()!=ThemePalette.Current(false).Card.ToArgb();})==0,"first page footer does not repeat the data notice");
+                var footer=new RectangleF(13,image.Height/2-25,234,20);Check(Pixels(image,footer,2,delegate(Color c){return !IsPanelCard(c,ThemePalette.Current(false));})==0,"first page footer does not repeat the data notice");
             }
             int firstHeight=PopupPages.SizeFor(rows).Height;nav.Offset=PageOffset(rows,8,7);rows=PopupPages.Build(f.Owner,nav,false);
             Check(PageTexts(rows)==second&&rows.FindAll(delegate(PopupControl row){return row.Id>=200;}).Count==7,"second page has all seven data/update/feedback settings");
@@ -186,13 +186,13 @@ static class ThemeTests {
                 Check(Pixel(image,x+8,y+9,scale).ToArgb()==p.Card.ToArgb(),"mini swatch shows its own card color: "+row.PaletteKey);
                 Check(Pixels(image,new RectangleF(x+6,y,18,1),scale,delegate(Color c){return c.ToArgb()==p.Border.ToArgb();})>0,"mini swatch has the palette border");
                 Check(Pixel(image,x+22,y+9,scale).ToArgb()==p.Accent.ToArgb(),"8px accent dot stays inside the right of the swatch");
-                Check(Pixels(image,new RectangleF(x+31,row.Rect.Top+2,6,row.Rect.Height-4),scale,delegate(Color c){return c.ToArgb()!=current.Card.ToArgb();})==0,"all names leave a clear gap after the 30px swatch");
+                Check(Pixels(image,new RectangleF(x+31,row.Rect.Top+2,6,row.Rect.Height-4),scale,delegate(Color c){return !IsPanelCard(c,current);})==0,"all names leave a clear gap after the 30px swatch");
                 Color text=row.Selected?current.Accent:current.Foreground;Check(Pixels(image,new RectangleF(x+38,row.Rect.Top,60,row.Rect.Height),scale,delegate(Color c){return c.ToArgb()==text.ToArgb();})>0,"all four names start after their swatches and selected text uses accent");
-                Check(Pixel(image,180,row.Rect.Y+row.Rect.Height/2,scale).ToArgb()==current.Card.ToArgb(),"theme rows keep the card background, including the selected row");
+                Check(IsPanelCard(Pixel(image,180,row.Rect.Y+row.Rect.Height/2,scale),current),"theme rows keep the card background, including the selected row");
                 if(row.Selected)Check(Pixels(image,new RectangleF(row.Rect.Right-22,row.Rect.Top+(row.Rect.Height-14)/2,14,14),scale,delegate(Color c){return c.ToArgb()==current.Accent.ToArgb();})>0,"selected theme retains an accent check mark");
             }
             var selected=rows.Find(delegate(PopupControl row){return row.Selected;});
-            using(var hover=RenderPanel(PopupPages.SizeFor(rows),scale,delegate(Graphics g){PopupPages.Paint(g,f.Owner,nav,rows,dark,selected.Id,selected.Id,selected.Id);}))Check(Pixel(hover,180,selected.Rect.Y+selected.Rect.Height/2,scale).ToArgb()==current.Card.ToArgb(),"hover, press and keyboard focus do not flood a theme row");
+            using(var hover=RenderPanel(PopupPages.SizeFor(rows),scale,delegate(Graphics g){PopupPages.Paint(g,f.Owner,nav,rows,dark,selected.Id,selected.Id,selected.Id);}))Check(IsPanelCard(Pixel(hover,180,selected.Rect.Y+selected.Rect.Height/2,scale),current),"hover, press and keyboard focus do not flood a theme row");
             nav.PreferenceAction=210;rows=PopupPages.Build(f.Owner,nav,false);selected=rows.Find(delegate(PopupControl row){return row.Selected;});
             using(var ordinary=RenderPanel(PopupPages.SizeFor(rows),scale,delegate(Graphics g){PopupPages.Paint(g,f.Owner,nav,rows,dark,-1,-1,-1);}))Check(Pixel(ordinary,180,selected.Rect.Y+selected.Rect.Height/2,scale).ToArgb()==current.Selected.ToArgb(),"other chooser pages keep their selected fill");
             VisualDesign.HighContrastOverride=true;nav.PreferenceAction=223;rows=PopupPages.Build(f.Owner,nav,false);
@@ -307,6 +307,14 @@ static class ThemeTests {
             VisualDesign.HighContrastOverride=true;using(var low=Card(threshold-1,true,dark,wireless,style,threshold,headset))using(var equal=Card(threshold,true,dark,wireless,style,threshold,headset))Check(low.GetPixel(20,y+48)==equal.GetPixel(20,y+48),"high contrast does not tint");VisualDesign.HighContrastOverride=false;
         }
     }
+    // The card fill is translucent (ThemePalette.PanelAlpha), so a pixel read back
+    // from a premultiplied bitmap can differ from the source colour by a rounding
+    // step. Compare with a small tolerance instead of an exact ToArgb() match.
+    static bool IsPanelCard(Color c,ThemePalette palette,int tolerance=2) {
+        var expected=palette.PanelCard;
+        return Math.Abs(c.A-expected.A)<=tolerance&&Math.Abs(c.R-expected.R)<=tolerance
+            &&Math.Abs(c.G-expected.G)<=tolerance&&Math.Abs(c.B-expected.B)<=tolerance;
+    }
     static bool SamePixels(Bitmap a,Bitmap b){
         if(a.Size!=b.Size)return false;
         var rect=new Rectangle(Point.Empty,a.Size);var x=a.LockBits(rect,ImageLockMode.ReadOnly,PixelFormat.Format32bppPArgb);var y=b.LockBits(rect,ImageLockMode.ReadOnly,PixelFormat.Format32bppPArgb);
@@ -334,7 +342,7 @@ static class ThemeTests {
     static void Surfaces(){
         foreach(string style in Styles)foreach(bool dark in new[]{true,false})using(var f=new Fixture(style)){
             var p=ThemePalette.Current(dark);
-            using(var card=RenderPanel(new Size(260,96),1,delegate(Graphics g){CompactRenderer.DrawSurface(g,new RectangleF(.5f,.5f,259,95),dark);}))Check(card.GetPixel(80,20).ToArgb()==p.Card.ToArgb()&&card.GetPixel(80,70).ToArgb()==p.Card.ToArgb(),"flat exact card fill");
+            using(var card=RenderPanel(new Size(260,96),1,delegate(Graphics g){CompactRenderer.DrawSurface(g,new RectangleF(.5f,.5f,259,95),dark);}))Check(IsPanelCard(card.GetPixel(80,20),p)&&IsPanelCard(card.GetPixel(80,70),p),"flat exact card fill");
             using(var main=RenderPanel(VisualDesign.PanelSizeFor(true,f.Owner.Dpi),1,delegate(Graphics g){CompactRenderer.Paint(g,f.Owner.Current,null,null,false,f.Owner.Dpi,null,false,dark,null,f.Owner.Audio);}))Check(main.GetPixel(78,71).ToArgb()==p.SegmentFill.ToArgb()&&main.GetPixel(100,90).ToArgb()==p.Accent.ToArgb(),"neutral floating selected segment and 12px accent pip");
             using(var image=new Bitmap(1,1))using(var g=Graphics.FromImage(image)){
                 var status=VisualDesign.FooterTextRect(0,208);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -108,7 +108,7 @@ namespace AtkBatteryTray {
         public static void DrawSurface(Graphics g,RectangleF rect,bool dark,BatteryView battery=null) {
             var palette=ThemePalette.Current(dark);bool low=ThemePalette.IsLow(battery,DeviceSettings.Current.WarningThreshold)&&!VisualDesign.HighContrast;
             using(var shape=VisualDesign.RoundRect(rect.X,rect.Y,rect.Width,rect.Height,VisualDesign.PanelRadius)) {
-                using(var fill=new SolidBrush(palette.Card))g.FillPath(fill,shape);
+                using(var fill=new SolidBrush(palette.PanelCard))g.FillPath(fill,shape);
                 if(low)using(var tint=new SolidBrush(ThemePalette.WarningOverlay(dark)))g.FillPath(tint,shape);
                 using(var pen=new Pen(low?palette.WarningBorder:palette.Border,1))g.DrawPath(pen,shape);
             }
@@ -123,7 +123,7 @@ namespace AtkBatteryTray {
                 Fill(g,VisualDesign.PanelShadowRect(rect,1),palette.PanelShadowNear,radius);
             }
             using(var shape=VisualDesign.RoundRect(rect.X,rect.Y,rect.Width,rect.Height,radius)) {
-                using(var fill=new SolidBrush(palette.Card))g.FillPath(fill,shape);
+                using(var fill=new SolidBrush(palette.PanelCard))g.FillPath(fill,shape);
                 if(ThemePalette.IsLow(battery,DeviceSettings.Current.WarningThreshold)&&!VisualDesign.HighContrast)using(var tint=new SolidBrush(ThemePalette.WarningOverlay(dark)))g.FillPath(tint,shape);
                 using(var pen=new Pen(palette.PanelBorder,1))g.DrawPath(pen,shape);
             }
