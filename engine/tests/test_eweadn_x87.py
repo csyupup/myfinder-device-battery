@@ -34,7 +34,8 @@ class X87Tests(unittest.TestCase):
             with patch.object(battery_hid.hidlist, "enumerate", return_value=[receiver(length)]), \
                  patch.object(battery_hid.hid, "device", return_value=dev):
                 card, = EweadnX87Provider().poll()
-            self.assertEqual((card.level, card.kind, card.charging_known), (level, "keyboard", False))
+            self.assertEqual((card.level, card.kind, card.charging_known), (level, "keyboard", True))
+            self.assertFalse(card.charging)
             dev.write.assert_called_once_with(bytes.fromhex("00 aa 10 18 00 00 00 01 00").ljust(length, b"\0"))
             dev.read.assert_called_once_with(length - 1, 600)
             dev.send_feature_report.assert_not_called()
@@ -42,7 +43,7 @@ class X87Tests(unittest.TestCase):
 
     def test_shared_id_with_another_model_or_invalid_page_produces_no_reading(self):
         for pos, value in ((0, 0xAA), (1, 0x20), (3, 24), (4, 1), (20, 3),
-                           (22, 6), (24, 1), (25, 0), (25, 101)):
+                           (22, 6), (24, 1), (25, 101)):
             data = fixture()
             data[pos] = value
             dev = MagicMock()
@@ -52,6 +53,18 @@ class X87Tests(unittest.TestCase):
             self.assertEqual(dev.write.call_count, 1)
         dev.read.return_value = []
         self.assertIsNone(EweadnX87Provider()._query(dev, receiver()))
+
+    def test_level_zero_and_charge_flag_are_reported(self):
+        # Measured on this receiver: field 25 can hold 0 while field 26 flips
+        # 1 -> 0 when the keyboard's cable is unplugged, so both are reported.
+        dev = MagicMock()
+        dev.write.return_value = 33
+        dev.read.return_value = list(fixture(32, 0))
+        self.assertEqual(EweadnX87Provider()._query(dev, receiver()), (0, False, ""))
+        charging = fixture(32, 0)
+        charging[26] = 1
+        dev.read.return_value = list(charging)
+        self.assertEqual(EweadnX87Provider()._query(dev, receiver()), (0, True, ""))
 
     def test_other_receivers_or_unproven_interfaces_never_open(self):
         for rows in ([receiver(product_string="AULA F87ProV2D Dongle")], [receiver(product_id=0xFEF9)],

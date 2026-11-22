@@ -18,6 +18,7 @@ class EweadnX87Provider(BatteryHidProvider):
     name = "eweadn_x87"
     vid, pids = VID, PIDS
     kind = "keyboard"
+    charging_known = True
 
     def _pick(self, infos):
         targets = [d for d in infos if matches_collection(d)]
@@ -46,4 +47,13 @@ class EweadnX87Provider(BatteryHidProvider):
                 or tuple(reply[20:25]) != (2, 0, 5, 0, 2)):
             return None
         level = reply[25]
-        return (level, False, "") if 1 <= level <= 100 else None
+        # Field 24 is the live link (2 = 2.4 GHz) and field 26 the live charge
+        # state. On the 0C45:FEFE receiver measured here field 26 flipped 1 -> 0
+        # the moment the keyboard's cable was unplugged, so report it instead of
+        # the hard-coded False.
+        charging = reply[26] in (1, 2)
+        # Local measurement: this firmware leaves field 25 at 0, so the stock
+        # 1..100 guard dropped every reply and the keyboard never appeared. Keep
+        # the 0..100 range so the receiver's only level byte stays visible; a 0
+        # is still reported as-is rather than guessed into a percentage.
+        return (level, charging, "") if 0 <= level <= 100 else None
